@@ -319,6 +319,9 @@ communicating via the proxy must reconnect to re-establish connections.
 * MCS-API CRDs need to be updated, see the MCS-API :ref:`clustermesh_mcsapi_prereqs` for updated CRD links.
 * Cilium will stop reporting its local cluster name and node name in metrics. Users relying on those
   should configure their metrics collection system to add similar labels instead.
+* The previously deprecated ``CiliumBGPPeeringPolicy`` CRD and its control plane (BGPv1) has been removed.
+  Please migrate to ``cilium.io/v2`` CRDs (``CiliumBGPClusterConfig``, ``CiliumBGPPeerConfig``,
+  ``CiliumBGPAdvertisement``, ``CiliumBGPNodeConfigOverride``) before upgrading.
 
 Removed Options
 ~~~~~~~~~~~~~~~
@@ -331,6 +334,8 @@ Removed Options
 * The previously deprecated ``--enable-node-port``, ``--enable-host-port``, and ``--enable-external-ips``
   flags have been removed. To enable the corresponding features, users must set ``--kube-proxy-replacement=true``.
 * The previously deprecated custom calls feature (``--enable-custom-calls``) has been removed.
+* The previously deprecated ``--enable-ipv4-egress-gateway`` flag has been removed. To enable the
+  corresponding features, users must set ``--enable-egress-gateway=true``.
 
 Deprecated Options
 ~~~~~~~~~~~~~~~~~~

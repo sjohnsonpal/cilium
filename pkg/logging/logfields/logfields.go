@@ -488,6 +488,12 @@ const (
 	// Device is the device name
 	Device = "device"
 
+	// DeviceHeadroom is the head buffer margin of a network device
+	DeviceHeadroom = "deviceHeadroom"
+
+	// DeviceHeadroom is the tail buffer margin of a network device
+	DeviceTailroom = "deviceTailroom"
+
 	// Devices is the devices name
 	Devices = "devices"
 
@@ -1828,4 +1834,8 @@ const (
 
 	// CompiledPools is a map of pools that use podSelectors
 	CompiledPools = "compiledPools"
+
+	ReloadKeypairError = "reloadKeypairError"
+
+	ReloadCAError = "reloadCAError"
 )

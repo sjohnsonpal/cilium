@@ -4,9 +4,7 @@
 package cmd
 
 import (
-	"errors"
 	"fmt"
-	"io/fs"
 	"log/slog"
 	"os"
 	"strings"
@@ -24,7 +22,6 @@ import (
 	"github.com/cilium/cilium/pkg/maps/nat"
 	"github.com/cilium/cilium/pkg/maps/neighborsmap"
 	"github.com/cilium/cilium/pkg/maps/policymap"
-	"github.com/cilium/cilium/pkg/maps/tunnel"
 	"github.com/cilium/cilium/pkg/option"
 )
 
@@ -141,12 +138,12 @@ func (e *EndpointMapManager) ListMapsDir(path string) []string {
 // initMaps opens all BPF maps (and creates them if they do not exist). This
 // must be done *before* any operations which read BPF maps, especially
 // restoring endpoints and services.
-func (d *Daemon) initMaps() error {
+func initMaps(params daemonParams) error {
 	if option.Config.DryMode {
 		return nil
 	}
 
-	if err := lxcmap.LXCMap(d.params.MetricsRegistry).OpenOrCreate(); err != nil {
+	if err := lxcmap.LXCMap(params.MetricsRegistry).OpenOrCreate(); err != nil {
 		return fmt.Errorf("initializing lxc map: %w", err)
 	}
 
@@ -160,19 +157,12 @@ func (d *Daemon) initMaps() error {
 	// the first time and its bpf programs have been replaced. Existing endpoints
 	// are using a policy map which is potentially out of sync as local identities
 	// are re-allocated on startup.
-	if err := ipcachemap.IPCacheMap(d.params.MetricsRegistry).Recreate(); err != nil {
+	if err := ipcachemap.IPCacheMap(params.MetricsRegistry).Recreate(); err != nil {
 		return fmt.Errorf("initializing ipcache map: %w", err)
 	}
 
 	if err := metricsmap.Metrics.OpenOrCreate(); err != nil {
 		return fmt.Errorf("initializing metrics map: %w", err)
-	}
-
-	// Tunnel map is no longer used, not even in tunnel routing mode.
-	// Therefore, make sure it gets unpinned at startup.
-	err := tunnel.TunnelMap().Unpin()
-	if err != nil && !errors.Is(err, fs.ErrNotExist) {
-		return fmt.Errorf("removing tunnel map: %w", err)
 	}
 
 	for _, m := range ctmap.GlobalMaps(option.Config.EnableIPv4,
@@ -182,8 +172,8 @@ func (d *Daemon) initMaps() error {
 		}
 	}
 
-	ipv4Nat, ipv6Nat := nat.GlobalMaps(d.params.MetricsRegistry, option.Config.EnableIPv4,
-		option.Config.EnableIPv6, d.params.KPRConfig.KubeProxyReplacement || option.Config.EnableBPFMasquerade)
+	ipv4Nat, ipv6Nat := nat.GlobalMaps(params.MetricsRegistry, option.Config.EnableIPv4,
+		option.Config.EnableIPv6, params.KPRConfig.KubeProxyReplacement || option.Config.EnableBPFMasquerade)
 	if ipv4Nat != nil {
 		if err := ipv4Nat.Create(); err != nil {
 			return fmt.Errorf("initializing ipv4nat map: %w", err)
@@ -195,13 +185,13 @@ func (d *Daemon) initMaps() error {
 		}
 	}
 
-	if d.params.KPRConfig.KubeProxyReplacement {
+	if params.KPRConfig.KubeProxyReplacement {
 		if err := neighborsmap.InitMaps(option.Config.EnableIPv4,
 			option.Config.EnableIPv6); err != nil {
 			return fmt.Errorf("initializing neighbors map: %w", err)
 		}
 	}
-	if d.params.KPRConfig.KubeProxyReplacement || option.Config.EnableBPFMasquerade {
+	if params.KPRConfig.KubeProxyReplacement || option.Config.EnableBPFMasquerade {
 		if err := nat.CreateRetriesMaps(option.Config.EnableIPv4,
 			option.Config.EnableIPv6); err != nil {
 			return fmt.Errorf("initializing NAT retries map: %w", err)
@@ -209,13 +199,13 @@ func (d *Daemon) initMaps() error {
 	}
 
 	if option.Config.EnableIPv4FragmentsTracking {
-		if err := fragmap.InitMap4(d.params.MetricsRegistry, option.Config.FragmentsMapEntries); err != nil {
+		if err := fragmap.InitMap4(params.MetricsRegistry, option.Config.FragmentsMapEntries); err != nil {
 			return fmt.Errorf("initializing fragments map: %w", err)
 		}
 	}
 
 	if option.Config.EnableIPv6FragmentsTracking {
-		if err := fragmap.InitMap6(d.params.MetricsRegistry, option.Config.FragmentsMapEntries); err != nil {
+		if err := fragmap.InitMap6(params.MetricsRegistry, option.Config.FragmentsMapEntries); err != nil {
 			return fmt.Errorf("initializing fragments map: %w", err)
 		}
 	}
@@ -223,7 +213,7 @@ func (d *Daemon) initMaps() error {
 	if !option.Config.RestoreState {
 		// If we are not restoring state, all endpoints can be
 		// deleted. Entries will be re-populated.
-		lxcmap.LXCMap(d.params.MetricsRegistry).DeleteAll()
+		lxcmap.LXCMap(params.MetricsRegistry).DeleteAll()
 	}
 
 	return nil

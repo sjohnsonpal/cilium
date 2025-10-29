@@ -20,8 +20,12 @@
   "gitAuthor": "cilium-renovate[bot] <134692979+cilium-renovate[bot]@users.noreply.github.com>",
   "includePaths": [
     ".github/actions/bpftrace/**",
+    ".github/actions/cosign/**",
     ".github/actions/e2e/**",
     ".github/actions/kvstore/**",
+    ".github/actions/gather-metrics/**",
+    ".github/actions/merge-artifacts/**",
+    ".github/actions/post-logic/**",
     ".github/actions/ginkgo/**",
     ".github/actions/lvh-kind/**",
     ".github/actions/set-env-variables/action.yml",
@@ -167,7 +171,25 @@
         "bump",
         "replacement",
       ],
-      "groupName": "all-dependencies"
+      "groupName": "all-dependencies",
+      "excludePackageNames": [
+        "quay.io/goswagger/swagger"
+      ]
+    },
+    {
+      // Update quay.io/goswagger/swagger independently because it changes 300+ files
+      // which breaks GitHub workflow path filtering
+      "matchPackageNames": [
+        "quay.io/goswagger/swagger"
+      ],
+      "groupName": "goswagger",
+      "separateMajorMinor": true,
+      "automerge": true,
+      "automergeType": "pr",
+      // Replace the list of reviewers with just ciliumbot
+      "reviewers":[
+        "ciliumbot",
+      ]
     },
     {
       "groupName": "all github action dependencies",
@@ -216,12 +238,6 @@
       "matchUpdateTypes": [
         "patch"
       ],
-      matchBaseBranches: [
-        "main",
-        "v1.18",
-        "v1.17",
-        "v1.16",
-      ]
     },
     {
       // Do not allow any updates into stable branches.
@@ -233,9 +249,7 @@
         "go.sum"
       ],
       matchBaseBranches: [
-        "v1.18",
-        "v1.17",
-        "v1.16"
+        "!main",
       ]
     },
     {
@@ -292,6 +306,20 @@
         "docker.io/library/golang"
       ],
     },
+    // Do not allow any updates for major.minor on stable release branches to avoid churn from linters.
+    {
+      enabled: false,
+      matchPackageNames: [
+        'quay.io/goswagger/swagger',
+      ],
+      matchBaseBranches: [
+        "!main",
+      ],
+      matchUpdateTypes: [
+        'major',
+        'minor',
+      ],
+    },
     {
       // Do not allow any major and minor updates into stable branches.
       "enabled": false,
@@ -305,20 +333,7 @@
         "minor",
       ],
       matchBaseBranches: [
-        "v1.18",
-        "v1.17",
-        "v1.16",
-      ]
-    },
-    {
-      // Do not ping helm/kind since the last version (1.10.0) has a bug which
-      // prevents it from downloading kubectl in older versions.
-      "enabled": false,
-      "matchDepNames": [
-        "helm/kind-action"
-      ],
-      "matchUpdateTypes": [
-        "digest"
+        "!main",
       ]
     },
     {
@@ -388,17 +403,6 @@
       ]
     },
     {
-      "matchPackageNames": [
-        "quay.io/cilium/certgen",
-      ],
-      "allowedVersions": "<0.2.0",
-      "matchBaseBranches": [
-        "v1.18",
-        "v1.17",
-        "v1.16",
-      ]
-    },
-    {
       // Disable major updates for go-github as those require updating import paths
       "enabled": false,
       "matchPackageNames": [
@@ -441,12 +445,6 @@
       "matchDepNames": [
         "cilium/cilium-cli"
       ],
-      "matchBaseBranches": [
-        "main",
-        "v1.18",
-        "v1.17",
-        "v1.16",
-      ]
     },
     {
       "groupName": "Hubble CLI",
@@ -478,9 +476,7 @@
         "golangci/golangci-lint"
       ],
       "matchBaseBranches": [
-        "v1.18",
-        "v1.17",
-        "v1.16",
+        "!main",
       ]
     },
     {
@@ -510,9 +506,7 @@
       ],
       "allowedVersions": "!/bpf-next-.*/",
       "matchBaseBranches": [
-        "v1.18",
-        "v1.17",
-        "v1.16",
+        "!main",
       ],
     },
     {
@@ -767,9 +761,7 @@
         "major"
       ],
       "matchBaseBranches": [
-        "v1.18",
-        "v1.17",
-        "v1.16",
+        "!main",
       ]
     },
     {
@@ -783,9 +775,7 @@
         "minor",
       ],
       "matchBaseBranches": [
-        "v1.18",
-        "v1.17",
-        "v1.16",
+        "!main",
       ]
     }
   ],
@@ -839,6 +829,8 @@
       "matchStrings": [
         "# renovate: datasource=(?<datasource>.*?) depName=(?<depName>.*?)\\s+.+version: (?<currentValue>.*)",
         "# renovate: datasource=(?<datasource>.*?) depName=(?<depName>.*?)\\s+.+_VERSION: (?<currentValue>.*)",
+        "# renovate: datasource=(?<datasource>.*?) depName=(?<depName>.*?)\\s+[\\w.]+:\\s+'(?<currentValue>.*)'",
+        "# renovate: datasource=(?<datasource>.*?) depName=(?<depName>.*?)\\s+.*FULL_KERNEL=\"(?<currentValue>.*)\"",
         "# renovate: datasource=(?<datasource>.*?) depName=(?<depName>.*?)\\s+.+kernel: '(?<currentValue>.*)'",
         '# renovate: datasource=(?<datasource>.*?) depName=(?<depName>.*)\\s+.+kernel: "(?<currentValue>.*)"',
         '# renovate: datasource=(?<datasource>.*?) depName=(?<depName>.*)\\s+.+image-version: "(?<currentValue>.*)"',

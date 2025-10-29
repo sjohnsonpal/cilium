@@ -46,6 +46,18 @@ import (
 	"github.com/cilium/cilium/pkg/version"
 )
 
+// Hive options
+const (
+	// HiveStartTimeout is the maximum time to wait for startup hooks to complete before timing out
+	HiveStartTimeout = "hive-start-timeout"
+
+	// HiveStopTimeout is the maximum time to wait for stop hooks to complete before timing out
+	HiveStopTimeout = "hive-stop-timeout"
+
+	// HiveLogThreshold is the time limit after which a slow hook is logged at Info level
+	HiveLogThreshold = "hive-log-threshold"
+)
+
 const (
 	// AgentHealthPort is the TCP port for agent health status API
 	AgentHealthPort = "agent-health-port"
@@ -301,9 +313,6 @@ const (
 	// EnableIPMasqAgent enables BPF ip-masq-agent
 	EnableIPMasqAgent = "enable-ip-masq-agent"
 
-	// EnableIPv4EgressGateway enables the IPv4 egress gateway
-	EnableIPv4EgressGateway = "enable-ipv4-egress-gateway"
-
 	// EnableEgressGateway enables the egress gateway
 	EnableEgressGateway = "enable-egress-gateway"
 
@@ -413,9 +422,6 @@ const (
 	// DNSProxyInsecureSkipTransparentModeCheck is a hidden flag that allows users
 	// to disable transparent mode even if IPSec is enabled
 	DNSProxyInsecureSkipTransparentModeCheck = "dnsproxy-insecure-skip-transparent-mode-check"
-
-	// MTUName is the name of the MTU option
-	MTUName = "mtu"
 
 	// RouteMetric is the name of the route-metric option
 	RouteMetric = "route-metric"
@@ -731,9 +737,6 @@ const (
 
 	// EnableEndpointHealthChecking is the name of the EnableEndpointHealthChecking option
 	EnableEndpointHealthChecking = "enable-endpoint-health-checking"
-
-	// EnableHealthCheckLoadBalancerIP is the name of the EnableHealthCheckLoadBalancerIP option
-	EnableHealthCheckLoadBalancerIP = "enable-health-check-loadbalancer-ip"
 
 	// HealthCheckICMPFailureThreshold is the name of the HealthCheckICMPFailureThreshold option
 	HealthCheckICMPFailureThreshold = "health-check-icmp-failure-threshold"
@@ -1138,6 +1141,24 @@ func LogRegisteredSlogOptions(vp *viper.Viper, entry *slog.Logger) {
 	}
 }
 
+type HiveConfig struct {
+	// StartTimeout is the maximum time to wait for startup hooks to complete before timing out
+	StartTimeout time.Duration
+
+	// StopTimeout is the maximum time to wait for stop hooks to complete before timing out
+	StopTimeout time.Duration
+
+	// LogThreshold is the time limit after which a slow hook is logged at Info level
+	LogThreshold time.Duration
+}
+
+// Populate sets all hive options from the value from viper.
+func (c *HiveConfig) Populate(vp *viper.Viper) {
+	c.StartTimeout = vp.GetDuration(HiveStartTimeout)
+	c.StopTimeout = vp.GetDuration(HiveStopTimeout)
+	c.LogThreshold = vp.GetDuration(HiveLogThreshold)
+}
+
 // DaemonConfig is the configuration used by Daemon.
 type DaemonConfig struct {
 	// Private sum of the config written to file. Used to check that the config is not changed
@@ -1180,6 +1201,9 @@ type DaemonConfig struct {
 
 	// Monitor contains the configuration for the node monitor.
 	Monitor *models.MonitorStatus
+
+	// HiveConfig contains the configuration for daemon hive.
+	HiveConfig HiveConfig
 
 	// AgentHealthPort is the TCP port for agent health status API
 	AgentHealthPort int
@@ -1510,10 +1534,6 @@ type DaemonConfig struct {
 	// EnableEndpointHealthChecking enables health checking between virtual
 	// health endpoints
 	EnableEndpointHealthChecking bool
-
-	// EnableHealthCheckLoadBalancerIP enables health checking of LoadBalancerIP
-	// by cilium
-	EnableHealthCheckLoadBalancerIP bool
 
 	// HealthCheckICMPFailureThreshold is the number of ICMP packets sent for each health
 	// checking run. If at least an ICMP response is received, the node or endpoint
@@ -1892,7 +1912,6 @@ var (
 		IPAMDefaultIPPool:               defaults.IPAMDefaultIPPool,
 		EnableHealthChecking:            defaults.EnableHealthChecking,
 		EnableEndpointHealthChecking:    defaults.EnableEndpointHealthChecking,
-		EnableHealthCheckLoadBalancerIP: defaults.EnableHealthCheckLoadBalancerIP,
 		HealthCheckICMPFailureThreshold: defaults.HealthCheckICMPFailureThreshold,
 		EnableIPv4:                      defaults.EnableIPv4,
 		EnableIPv6:                      defaults.EnableIPv6,
@@ -2435,6 +2454,8 @@ func (c *DaemonConfig) SetupLogging(vp *viper.Viper, tag string) {
 func (c *DaemonConfig) Populate(logger *slog.Logger, vp *viper.Viper) {
 	var err error
 
+	c.HiveConfig.Populate(vp)
+
 	c.AgentHealthPort = vp.GetInt(AgentHealthPort)
 	c.ClusterHealthPort = vp.GetInt(ClusterHealthPort)
 	c.ClusterMeshHealthPort = vp.GetInt(ClusterMeshHealthPort)
@@ -2473,7 +2494,6 @@ func (c *DaemonConfig) Populate(logger *slog.Logger, vp *viper.Viper) {
 	c.EnableEndpointRoutes = vp.GetBool(EnableEndpointRoutes)
 	c.EnableHealthChecking = vp.GetBool(EnableHealthChecking)
 	c.EnableEndpointHealthChecking = vp.GetBool(EnableEndpointHealthChecking)
-	c.EnableHealthCheckLoadBalancerIP = vp.GetBool(EnableHealthCheckLoadBalancerIP)
 	c.HealthCheckICMPFailureThreshold = vp.GetInt(HealthCheckICMPFailureThreshold)
 	c.EnableLocalNodeRoute = vp.GetBool(EnableLocalNodeRoute)
 	c.EnablePolicy = strings.ToLower(vp.GetString(EnablePolicy))
@@ -2519,13 +2539,12 @@ func (c *DaemonConfig) Populate(logger *slog.Logger, vp *viper.Viper) {
 	c.LocalRouterIPv6 = vp.GetString(LocalRouterIPv6)
 	c.EnableBPFClockProbe = vp.GetBool(EnableBPFClockProbe)
 	c.EnableIPMasqAgent = vp.GetBool(EnableIPMasqAgent)
-	c.EnableEgressGateway = vp.GetBool(EnableEgressGateway) || vp.GetBool(EnableIPv4EgressGateway)
+	c.EnableEgressGateway = vp.GetBool(EnableEgressGateway)
 	c.EnableEnvoyConfig = vp.GetBool(EnableEnvoyConfig)
 	c.AgentHealthRequireK8sConnectivity = vp.GetBool(AgentHealthRequireK8sConnectivity)
 	c.InstallIptRules = vp.GetBool(InstallIptRules)
 	c.MonitorAggregation = vp.GetString(MonitorAggregationName)
 	c.MonitorAggregationInterval = vp.GetDuration(MonitorAggregationInterval)
-	c.MTU = vp.GetInt(MTUName)
 	c.PreAllocateMaps = vp.GetBool(PreAllocateMapsName)
 	c.ProcFs = vp.GetString(ProcFs)
 	c.RestoreState = vp.GetBool(Restore)

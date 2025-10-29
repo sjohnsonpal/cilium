@@ -138,15 +138,14 @@ wg_maybe_redirect_to_encrypt(struct __ctx_buff *ctx, __be16 proto,
 	}
 
 #ifndef ENABLE_NODE_ENCRYPTION
-	/* A pkt coming from L7 proxy (i.e., Envoy or the DNS proxy on behalf of
-	 * a client pod) has src IP addr of a host, but not of the client pod
-	 * (if
-	 * --dnsproxy-enable-transparent-mode=false). Such a pkt must be
-	 *  encrypted.
+	/* We want to encrypt all proxy traffic. Looking at the packet mark is
+	 * needed for non-transparent connections.
+	 *
+	 * For connections by the egress proxy (MARK_MAGIC_PROXY_EGRESS) we
+	 * can rely on the provided source identity.
 	 */
 	magic = ctx->mark & MARK_MAGIC_HOST_MASK;
 	if (magic == MARK_MAGIC_PROXY_INGRESS ||
-	    magic == MARK_MAGIC_PROXY_EGRESS ||
 	    magic == MARK_MAGIC_SKIP_TPROXY)
 		goto maybe_encrypt;
 #if defined(TUNNEL_MODE)
@@ -227,7 +226,7 @@ strict_allow(struct __ctx_buff *ctx, __be16 proto) {
 #if defined(TUNNEL_MODE) || defined(STRICT_IPV4_OVERLAPPING_CIDR)
 		/* Allow pod to remote-node communication */
 		dest_info = lookup_ip4_remote_endpoint(ip4->daddr, 0);
-		if (dest_info && identity_is_node(dest_info->sec_identity))
+		if (dest_info && identity_is_remote_node(dest_info->sec_identity))
 			return true;
 #endif /* TUNNEL_MODE || STRICT_IPV4_OVERLAPPING_CIDR */
 		return !in_strict_cidr;
